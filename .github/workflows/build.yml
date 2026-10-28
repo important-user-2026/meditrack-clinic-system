@@ -1,0 +1,60 @@
+name: Build and SonarQube analysis
+
+# Runs on every push to main and on pull requests. It builds the project,
+# runs the tests, generates the JaCoCo coverage report, and sends everything
+# (including coverage) to SonarQube Cloud. This is what populates ALL SIX
+# metrics on your dashboard - Automatic Analysis alone does not include coverage.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history gives SonarQube accurate "new code" detection
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # 'mvn verify' runs the tests and writes the JaCoCo report;
+      # the sonar goal then uploads code + coverage to SonarQube Cloud.
+      #
+      # TODO before this works:
+      #   1. Replace the two placeholders below with your real values from
+      #      SonarQube Cloud (Project -> Information).
+      #   2. Add a repository secret named SONAR_TOKEN
+      #      (GitHub repo -> Settings -> Secrets and variables -> Actions).
+      - name: Build, test and analyze
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          mvn -B verify
+          org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.projectKey=YOUR_PROJECT_KEY
+          -Dsonar.organization=YOUR_ORG_KEY
+          -Dsonar.host.url=https://sonarcloud.io
